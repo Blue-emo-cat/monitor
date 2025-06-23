@@ -1,0 +1,10 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="MonitorAndRestart:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/MonitorAndRestart_jar</output-path>
+    <root id="archive" name="MonitorAndRestart_jar.jar">
+      <element id="archive" name="MonitorAndRestart.jar">
+        <element id="module-output" name="MonitorAndRestart" />
+      </element>
+    </root>
+  </artifact>
+</component>
