@@ -1,5 +1,7 @@
 package org.example;
 import javax.management.MBeanServerConnection;
+import javax.management.ObjectName;
+import javax.management.openmbean.CompositeData;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
@@ -14,8 +16,8 @@ import java.util.Scanner;
 
 public class MonitorAndRestart {
     private static final String JMX_URL = "service:jmx:rmi:///jndi/rmi://localhost:1099/jmxrmi";
-    private static final long MEMORY_THRESHOLD = 180 * 1024 * 1024; // 定义内存使用阈值为120MB
-    private static final long MEMORY_Warnning = 50 * 1024 * 1024; // 定义内存报警阈值为50MB
+    private static final long MEMORY_THRESHOLD = 1000 * 1024 * 1024; // 定义内存使用阈值为120MB
+    private static final long MEMORY_Warnning = 700 * 1024 * 1024; // 定义内存报警阈值为50MB
     private static long maxMemory;
     private static final Logger logger = LoggerFactory.getLogger(MonitorAndRestart.class);
     private static int port;
@@ -28,9 +30,18 @@ public class MonitorAndRestart {
         printMemory();
 
         try {
+            //建立jmx连接
             JMXServiceURL url = new JMXServiceURL(JMX_URL);
             JMXConnector jmxc = JMXConnectorFactory.connect(url, null);
             MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
+            //获取堆内存 MBean
+            ObjectName memoryMBean = new ObjectName("java.lang:type=Memory");
+            CompositeData heapData = (CompositeData) mbsc.getAttribute(memoryMBean, "HeapMemoryUsage");
+            // 3. 提取内存数据
+            //long used = (Long) heapData.get("used");
+            //long max = (Long) heapData.get("max");
+            //long committed = (Long) heapData.get("committed");
+
 
             int pid = getPid(port);
             if (pid == -1) {
@@ -39,33 +50,37 @@ public class MonitorAndRestart {
             }
 
             while (true) {
-                long usedMemory = getProcessMemoryUsage(getPid(port));
-                long used = usedMemory;
-                long max = maxMemory;
+                // 3. 提取内存数据
+                long used = (Long) heapData.get("used");
+                long max = (Long) heapData.get("max");
+                long committed = (Long) heapData.get("committed");
                 double usePersent = (double) used / max * 100;
+
                 String usep = String.format("%.2f", usePersent);
                 double usePer = Double.parseDouble(usep);
 
-                if (usedMemory == -1) {
+                if (used == -1) {
                     logger.error("无法获取程序的内存使用情况。");
                     return;
                 }
 
-                logger.info("程序使用内存: {}MB", usedMemory / (1024 * 1024));
+                logger.info("程序使用内存: {}MB", used / (1024 * 1024));
+                logger.info("程序堆提交内存: {}%", committed);
                 logger.info("程序堆内存使用率: {}%", usePer);
 
-                if (usedMemory > MEMORY_Warnning) {
+                if (used > MEMORY_Warnning) {
                     logger.warn("内存超过{}MB,请注意", (double) MEMORY_Warnning / 1024 / 1024);
-                    logger.warn("程序使用内存: {}MB", usedMemory / (1024 * 1024));
+                    logger.warn("程序使用内存: {}MB", used / (1024 * 1024));
+                    logger.warn("程序堆提交内存: {}%", committed);
                     logger.warn("程序堆内存使用率: {}%", usePer);
                 }
 
-                if (usedMemory > MEMORY_THRESHOLD) {
-                    logger.error("内存阈值超过{}MB,正在重启()...", (double) MEMORY_THRESHOLD / 1024 / 1024);
-                    logger.warn("程序使用内存: {}MB", usedMemory / (1024 * 1024));
-                    logger.warn("程序堆内存使用率: {}%", usePer);
-                    restartProgramA();
-                }
+//                if (usedMemory > MEMORY_THRESHOLD) {
+//                    logger.error("内存阈值超过{}MB,正在重启()...", (double) MEMORY_THRESHOLD / 1024 / 1024);
+//                    logger.warn("程序使用内存: {}MB", usedMemory / (1024 * 1024));
+//                    logger.warn("程序堆内存使用率: {}%", usePer);
+//                    restartProgramA();
+//                }
 
                 Thread.sleep(3000);
             }
@@ -173,7 +188,7 @@ public class MonitorAndRestart {
 
         long init = heapUsage.getInit();
         maxMemory = heapUsage.getMax();
-        long committed = heapUsage.getCommitted();
+        //long committed = heapUsage.getCommitted();
 
         logger.info("程序使用初始堆大小: {}MB", init / (1024 * 1024));
         logger.info("程序使用最大堆大小: {}MB", maxMemory / (1024 * 1024));
